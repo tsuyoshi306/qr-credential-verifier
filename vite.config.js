@@ -3,6 +3,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   base: '/qr-credential-verifier/',
+  server: {
+    allowedHosts: ['.trycloudflare.com']
+  },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
