@@ -149,6 +149,32 @@ $('clear-all-btn').addEventListener('click', async () => {
   renderHistory()
 })
 
+// PWA install prompt (T23)
+let deferredPrompt = null
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault()
+  deferredPrompt = e
+  $('install-btn').style.display = ''
+})
+$('install-btn').addEventListener('click', async () => {
+  if (!deferredPrompt) return
+  deferredPrompt.prompt()
+  await deferredPrompt.userChoice
+  deferredPrompt = null
+  $('install-btn').style.display = 'none'
+})
+window.addEventListener('appinstalled', () => {
+  $('install-btn').style.display = 'none'
+})
+
+// Offline warning (T24)
+function updateOnlineStatus() {
+  $('offline-banner').classList.toggle('show', !navigator.onLine)
+}
+window.addEventListener('online', updateOnlineStatus)
+window.addEventListener('offline', updateOnlineStatus)
+updateOnlineStatus()
+
 function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

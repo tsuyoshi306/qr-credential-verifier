@@ -48,10 +48,10 @@
 ## Phase 5: PWA仕上げ
 
 - [x] **T22** Service Worker のキャッシュ設定（VitePWA autoUpdate + globPatterns）
-- [ ] **T23** インストールプロンプト（beforeinstallprompt）対応
-- [ ] **T24** オフライン時の警告表示
+- [x] **T23** インストールプロンプト（beforeinstallprompt）対応
+- [x] **T24** オフライン時の警告表示
 - [x] **T25** GitHub Pages 用の base 設定（vite.config.js: /qr-credential-verifier/）
-- [ ] **T26** コミット `feat: PWA and offline support`
+- [x] **T26** コミット `feat: PWA and offline support`
 
 ---
 
