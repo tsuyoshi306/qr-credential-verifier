@@ -57,17 +57,18 @@
 
 ## Phase 6: アプリ内署名検証
 
-- [ ] **T27** `npm install cbor-x` を追加
-- [ ] **T28** `src/cose.js` — URLから`c=`抽出、Base64(url)デコード
-- [ ] **T29** `src/cose.js` — CBOR/COSE_Sign1 パース（tag18対応）、protectedヘッダのalg取得
-- [ ] **T30** `src/cose.js` — payload(登録情報)のCBORデコードとキー正規化
-- [ ] **T31** `src/cose.js` — Sig_structure構築 + Web Crypto(ES256)署名検証
-- [ ] **T32** `src/trust-config.js` — 公開鍵JWK配列（デフォルト空）+ 取得手順メモ
-- [ ] **T33** `index.html` + `src/main.js` — 登録情報カード・署名検証バッジ・失効未確認注意書き
-- [ ] **T34** 「有効」断定をしないこと、鍵未設定時スキップの動作確認
-- [ ] **T35** COSEパース失敗時の生データフォールバック
-- [ ] **T36** 履歴にパース結果・署名検証結果を保存
-- [ ] **T37** コミット `feat: in-app COSE signature verification and credential display`
+- [x] **T27** `npm install cbor-x` を追加
+- [x] **T28** `src/cose.js` — URLから`c=`抽出、Base64(url)デコード
+- [x] **T29** `src/cose.js` — CBOR/COSE_Sign1 パース（tag18対応）、protectedヘッダのalg取得
+- [x] **T30** `src/cose.js` — payload(登録情報)のCBORデコードとキー正規化
+- [x] **T31** `src/cose.js` — Sig_structure構築 + Web Crypto(ES256)署名検証
+- [x] **T32** `src/trust-config.js` — 公開鍵JWK配列（デフォルト空）+ 取得手順メモ
+- [x] **T33** `index.html` + `src/main.js` — 登録情報カード・署名検証バッジ・失効未確認注意書き
+- [x] **T34** 「有効」断定をしないこと、鍵未設定時スキップの動作確認
+- [x] **T35** COSEパース失敗時の生データフォールバック
+- [x] **T36** 履歴にパース結果・署名検証結果を保存
+- [x] **T37** コミット `feat: in-app COSE signature verification and credential display`
+- [x] **T38** 自己テスト `test/cose.test.mjs`（署名OK/NG/skip/壊れ入力 = 10件pass）+ サンプルQR画像
 
 ---
 
