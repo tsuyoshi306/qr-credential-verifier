@@ -6,52 +6,52 @@
 
 ## Phase 1: プロジェクト基盤
 
-- [ ] **T01** `npm create vite@latest` でプロジェクト初期化（vanilla JS）
-- [ ] **T02** `npm install jsqr idb` を追加
-- [ ] **T03** `npm install -D vite-plugin-pwa` を追加し vite.config.js を設定
-- [ ] **T04** `public/manifest.json` を作成（アイコン・テーマカラー・display:standalone）
-- [ ] **T05** 初期コミット `chore: initial project setup`
+- [x] **T01** Vite プロジェクト初期化（vanilla JS）
+- [x] **T02** `npm install jsqr idb` を追加
+- [x] **T03** `vite-plugin-pwa` を追加し vite.config.js を設定
+- [x] **T04** manifest 設定（vite.config.js 内で定義、display:standalone）
+- [x] **T05** 初期コミット `chore: initial project setup`
 
 ---
 
 ## Phase 2: QRスキャナー
 
-- [ ] **T06** `src/scanner.js` — getUserMedia でカメラ起動、エラーハンドリング
-- [ ] **T07** `src/scanner.js` — jsQR でフレーム解析ループ（requestAnimationFrame）
-- [ ] **T08** `src/scanner.js` — QR検出時にコールバックを呼びストリーム停止
-- [ ] **T09** `index.html` + `src/ui.js` — スキャン画面UI（video + canvas、結果表示エリア）
-- [ ] **T10** 「検証サイトで確認」ボタン表示（dqcvs.nqs.go.jp URLの場合）
-- [ ] **T11** コミット `feat: QR scanner implementation`
+- [x] **T06** `src/scanner.js` — getUserMedia でカメラ起動、エラーハンドリング
+- [x] **T07** `src/scanner.js` — jsQR でフレーム解析ループ（requestAnimationFrame）
+- [x] **T08** `src/scanner.js` — QR検出時にコールバックを呼びストリーム停止
+- [x] **T09** `index.html` + `src/main.js` — スキャン画面UI（video + canvas、結果表示エリア）※ui.jsはmain.jsに統合
+- [x] **T10** 「検証サイトで確認」ボタン表示（dqcvs.nqs.go.jp URLの場合）
+- [x] **T11** コミット `feat: QR scanner implementation`
 
 ---
 
 ## Phase 3: 検証連携
 
-- [ ] **T12** `src/ui.js` — 「検証サイトで確認」で新タブを開く
-- [ ] **T13** `src/ui.js` — 「検証しました」ボタンで verified フラグをセット
-- [ ] **T14** 検証済みバッジ表示CSS
-- [ ] **T15** コミット `feat: verification link and status tracking`
+- [x] **T12** `src/main.js` — 「検証サイトで確認」で新タブを開く
+- [x] **T13** `src/main.js` — 「検証しました」ボタンで verified フラグをセット
+- [x] **T14** 検証済みバッジ表示CSS
+- [x] **T15** コミット `feat: verification link and status tracking`
 
 ---
 
 ## Phase 4: 履歴機能
 
-- [ ] **T16** `src/storage.js` — IndexedDB 初期化（idb 使用）
-- [ ] **T17** `src/storage.js` — addScan / getScans / deleteScan / clearScans 関数
-- [ ] **T18** `src/ui.js` — 履歴画面のレンダリング（リスト + 削除ボタン）
-- [ ] **T19** スキャン成功時に自動保存を追加
-- [ ] **T20** 「全件削除」ボタン + 確認ダイアログ
-- [ ] **T21** コミット `feat: scan history with IndexedDB`
+- [x] **T16** `src/storage.js` — IndexedDB 初期化（idb 使用）
+- [x] **T17** `src/storage.js` — addScan / getScans / markVerified / deleteScan / clearScans 関数
+- [x] **T18** `src/main.js` — 履歴画面のレンダリング（リスト + 削除ボタン）
+- [x] **T19** スキャン成功時に自動保存を追加
+- [x] **T20** 「全件削除」ボタン + 確認ダイアログ
+- [x] **T21** コミット `feat: scan history with IndexedDB`
 
 ---
 
 ## Phase 5: PWA仕上げ
 
-- [ ] **T22** Service Worker のキャッシュ設定（jsQR + idb をプリキャッシュ）
-- [ ] **T23** インストールプロンプト（beforeinstallprompt）対応
-- [ ] **T24** オフライン時の警告表示
-- [ ] **T25** GitHub Pages へのデプロイ設定（vite.config.js の base 設定）
-- [ ] **T26** コミット `feat: PWA and offline support`
+- [x] **T22** Service Worker のキャッシュ設定（VitePWA autoUpdate + globPatterns）
+- [x] **T23** インストールプロンプト（beforeinstallprompt）対応
+- [x] **T24** オフライン時の警告表示
+- [x] **T25** GitHub Pages 用の base 設定（vite.config.js: /qr-credential-verifier/）
+- [x] **T26** コミット `feat: PWA and offline support`
 
 ---
 
