@@ -2,6 +2,7 @@ import { QRScanner } from './scanner.js'
 import { isCredentialUrl, analyzeCredential, extractCoseBytes } from './cose.js'
 import { addScan, getScans, updateScan, deleteScan, clearScans } from './storage.js'
 import { PROXY_URL, isProxyConfigured } from './proxy-config.js'
+import { readQrFromFile } from './file-import.js'
 
 const $ = id => document.getElementById(id)
 
@@ -42,6 +43,29 @@ $('stop-btn').addEventListener('click', () => {
 $('rescan-btn').addEventListener('click', () => {
   hideResult()
   $('start-btn').click()
+})
+
+// ファイル（PDF/画像）から読み取り
+$('file-btn').addEventListener('click', () => $('file-input').click())
+$('file-input').addEventListener('change', async e => {
+  const file = e.target.files && e.target.files[0]
+  e.target.value = '' // 同じファイルを再選択できるように
+  if (!file) return
+  scanner.stop()
+  resetScanUI()
+  hideError()
+  hideResult()
+  $('file-loading').style.display = ''
+  $('file-btn').disabled = true
+  try {
+    const data = await readQrFromFile(file)
+    await handleDetected(data)
+  } catch (err) {
+    showError(err.message || 'ファイルの読み取りに失敗しました')
+  } finally {
+    $('file-loading').style.display = 'none'
+    $('file-btn').disabled = false
+  }
 })
 
 let currentUrl = null
