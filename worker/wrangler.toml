@@ -1,0 +1,8 @@
+name = "qr-credential-verify-proxy"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+# デプロイ: cd worker && npx wrangler deploy
+# 初回は `npx wrangler login`（ブラウザ認証）が必要。
+# デプロイ後に出る https://qr-credential-verify-proxy.<account>.workers.dev を
+# ルートの src/proxy-config.js に設定する。

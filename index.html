@@ -178,6 +178,24 @@
     }
     #parse-error { margin-top: 10px; }
 
+    /* 公式検証 */
+    .consent-note { font-size: 0.74rem; color: #6b7280; margin-top: 6px; line-height: 1.4; }
+    #official-loading { margin-top: 12px; font-weight: 600; color: #1a56db; }
+    .verdict {
+      margin-top: 14px; padding: 14px; border-radius: 10px; text-align: center;
+      font-size: 1.15rem; font-weight: 700;
+    }
+    .verdict-valid { background: #d1fae5; color: #059669; border: 2px solid #6ee7b7; }
+    .verdict-invalid { background: #fee2e2; color: #dc2626; border: 2px solid #fca5a5; }
+    .verdict small { display:block; font-size:0.72rem; font-weight:400; color:#6b7280; margin-top:6px; }
+    .result-table { width:100%; border-collapse:collapse; font-size:0.82rem; margin-top:10px; }
+    .result-table th, .result-table td { padding:6px 8px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+    .result-table th { color:#6b7280; font-weight:600; width:38%; white-space:nowrap; }
+    .result-table td { word-break:break-all; }
+    .cert-caption { font-size:0.78rem; font-weight:700; margin-top:12px; color:#374151; }
+    #official-result details { margin-top:12px; }
+    #official-result summary { cursor:pointer; font-weight:600; font-size:0.85rem; color:#1a56db; }
+
     #error-msg {
       display: none;
       background: #fee2e2;
@@ -274,7 +292,15 @@
 
         <div id="parse-error" style="display:none"></div>
 
-        <button id="verify-btn" class="btn btn-primary" style="margin-top:12px">🔍 検証サイトで公式確認</button>
+        <!-- 公式検証（中継サーバ経由でデジタル庁サイトに照会） -->
+        <div id="official-verify" style="display:none">
+          <button id="official-btn" class="btn btn-primary" style="margin-top:14px">🏛 公式検証を実行（デジタル庁）</button>
+          <p class="consent-note">資格データを中継サーバ経由でデジタル庁の検証サイトに送信し、有効性（失効・取消含む）を確認します。</p>
+          <div id="official-loading" style="display:none">⏳ デジタル庁に照会中…</div>
+          <div id="official-result" style="display:none"></div>
+        </div>
+
+        <button id="verify-btn" class="btn btn-secondary" style="margin-top:12px">🔍 検証サイトを直接開く</button>
         <button id="rescan-btn" class="btn btn-secondary" style="margin-top:8px">🔄 再スキャン</button>
       </div>
     </div>

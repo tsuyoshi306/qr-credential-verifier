@@ -27,9 +27,21 @@ export async function addScan(qrData, analysis = {}) {
     sigStatus: analysis.sigStatus || null, // 'ok'|'ng'|'skipped'|'error'|null
     name: analysis.name || '',
     qualification: analysis.qualification || '',
+    officialValid: null,   // 公式検証の判定（true/false/null=未実施）
+    officialResult: '',    // 公式検証の結果テキスト
     memo: ''
   }
   await db.add(STORE, record)
+  return record
+}
+
+// 既存レコードの一部フィールドを更新（公式検証結果など）
+export async function updateScan(id, fields) {
+  const db = await getDB()
+  const record = await db.get(STORE, id)
+  if (!record) return
+  Object.assign(record, fields)
+  await db.put(STORE, record)
   return record
 }
 
