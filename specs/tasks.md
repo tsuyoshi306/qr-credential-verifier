@@ -72,6 +72,21 @@
 
 ---
 
+## Phase 7: 公式検証（Cloudflare Worker中継）
+
+- [x] **T39** `worker/src/parse.js` — 検証結果HTMLパーサ（判定/日時/登録情報/証明書）
+- [x] **T40** `worker/src/index.js` — POST受付→検証サイトへform POST→JSON返却、CORS/OPTIONS対応
+- [x] **T41** `worker/wrangler.toml` — Worker設定
+- [x] **T42** `worker/test/parse.test.mjs` — 匿名+実HTMLでパーサ検証（16件pass）
+- [x] **T43** `src/proxy-config.js` — Worker URL設定（未設定時はボタン無効化）
+- [x] **T44** `index.html`/`src/main.js` — 「公式検証を実行」ボタン・結果表示・送信前の同意明示
+- [x] **T45** 公式検証結果を既存履歴レコードに反映（updateScan）
+- [ ] **T46** Worker デプロイ（wrangler、ユーザー認証）+ proxy-config に本番URL ← 認証待ち
+- [x] **T47** コミット `feat: official verification via Cloudflare Worker proxy`
+- [x] **T48** Worker統合テスト（実checkdataで上流POST→解析→CORS確認、ローカル）
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main

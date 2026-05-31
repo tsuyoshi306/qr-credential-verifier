@@ -1,6 +1,7 @@
 import { QRScanner } from './scanner.js'
-import { isCredentialUrl, analyzeCredential } from './cose.js'
-import { addScan, getScans, deleteScan, clearScans } from './storage.js'
+import { isCredentialUrl, analyzeCredential, extractCoseBytes } from './cose.js'
+import { addScan, getScans, updateScan, deleteScan, clearScans } from './storage.js'
+import { PROXY_URL, isProxyConfigured } from './proxy-config.js'
 
 const $ = id => document.getElementById(id)
 
@@ -44,6 +45,8 @@ $('rescan-btn').addEventListener('click', () => {
 })
 
 let currentUrl = null
+let lastSummary = {}
+let currentScanId = null
 
 async function handleDetected(data) {
   resetScanUI()
@@ -54,6 +57,66 @@ async function handleDetected(data) {
 $('verify-btn').addEventListener('click', () => {
   if (currentUrl) window.open(currentUrl, '_blank', 'noopener')
 })
+
+$('official-btn').addEventListener('click', async () => {
+  if (!currentUrl || !isProxyConfigured()) return
+  let checkdata
+  try { checkdata = new URL(currentUrl).searchParams.get('c') } catch { checkdata = null }
+  if (!checkdata) { showOfficialError('QRから検証データを取得できませんでした'); return }
+
+  $('official-btn').disabled = true
+  $('official-loading').style.display = ''
+  $('official-result').style.display = 'none'
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkdata })
+    })
+    const data = await res.json()
+    if (!res.ok || data.error) {
+      showOfficialError(data.error || `照会に失敗しました (HTTP ${res.status})`)
+    } else {
+      renderOfficialResult(data)
+      // 公式判定を既存履歴レコードに反映
+      if (currentScanId) await updateScan(currentScanId, { officialValid: data.valid, officialResult: data.resultText })
+    }
+  } catch (e) {
+    showOfficialError('中継サーバへの接続に失敗しました')
+  } finally {
+    $('official-loading').style.display = 'none'
+    $('official-btn').disabled = false
+  }
+})
+
+function showOfficialError(msg) {
+  $('official-result').innerHTML = `<div class="sig-badge sig-error">⚠️ ${escHtml(msg)}</div>`
+  $('official-result').style.display = ''
+}
+
+function renderOfficialResult(data) {
+  const cls = data.valid ? 'verdict-valid' : 'verdict-invalid'
+  const icon = data.valid ? '✅' : '⛔'
+  let html = `<div class="verdict ${cls}">${icon} ${escHtml(data.resultText || (data.valid ? '有効' : '無効'))}` +
+    `<small>確認日時: ${escHtml(data.checkedAt || '')}／デジタル庁 検証サイトの判定結果</small></div>`
+  if (data.registration && data.registration.length) {
+    html += '<table class="result-table">'
+    for (const r of data.registration) html += `<tr><th>${escHtml(r.key)}</th><td>${escHtml(r.value)}</td></tr>`
+    html += '</table>'
+  }
+  if (data.certificates && data.certificates.length) {
+    html += '<details><summary>証明書情報</summary>'
+    for (const c of data.certificates) {
+      if (c.caption) html += `<div class="cert-caption">${escHtml(c.caption)}</div>`
+      html += '<table class="result-table">'
+      for (const r of c.rows) html += `<tr><th>${escHtml(r.key)}</th><td>${escHtml(r.value)}</td></tr>`
+      html += '</table>'
+    }
+    html += '</details>'
+  }
+  $('official-result').innerHTML = html
+  $('official-result').style.display = ''
+}
 
 const SIG_PRESENTATION = {
   ok:    { cls: 'sig-ok',    icon: '🔏', head: '署名OK（改竄なし）' },
@@ -71,8 +134,19 @@ async function showResult(url) {
   $('cred-info').style.display = 'none'
   $('parse-error').style.display = 'none'
   $('sig-badge').innerHTML = ''
+  $('official-result').style.display = 'none'
+  $('official-result').innerHTML = ''
+  $('official-loading').style.display = 'none'
 
   const isCredential = isCredentialUrl(url)
+  // 公式検証セクションの表示制御
+  $('official-verify').style.display = isCredential ? '' : 'none'
+  if (isCredential) {
+    $('official-btn').disabled = !isProxyConfigured()
+    $('official-btn').textContent = isProxyConfigured()
+      ? '🏛 公式検証を実行（デジタル庁）'
+      : '🏛 公式検証（中継サーバ未設定）'
+  }
   $('result-badge').innerHTML = isCredential
     ? '<span class="badge badge-verified">デジタル資格者証QRを検出</span>'
     : '<span class="badge badge-warning">⚠ 資格者証のQRコードではない可能性があります</span>'
@@ -85,7 +159,9 @@ async function showResult(url) {
   }
 
   // 履歴に保存（解析結果込み）
-  await addScan(url, summarize(analysis))
+  lastSummary = summarize(analysis)
+  const rec = await addScan(url, lastSummary)
+  currentScanId = rec.id
 }
 
 function renderAnalysis(a) {
@@ -135,6 +211,7 @@ function summarize(a) {
 function hideResult() {
   $('result-card').classList.remove('show')
   currentUrl = null
+  currentScanId = null
 }
 
 function resetScanUI() {
@@ -178,7 +255,7 @@ async function renderHistory() {
     li.innerHTML = `
       <div class="history-item-header">
         <span class="history-date">${date}</span>
-        ${sigBadgeHtml(scan.sigStatus)}
+        ${officialBadgeHtml(scan) || sigBadgeHtml(scan.sigStatus)}
       </div>
       <div class="history-url">${title}</div>
       <div class="history-actions">
@@ -233,6 +310,12 @@ function updateOnlineStatus() {
 window.addEventListener('online', updateOnlineStatus)
 window.addEventListener('offline', updateOnlineStatus)
 updateOnlineStatus()
+
+function officialBadgeHtml(scan) {
+  if (scan.officialValid === true) return '<span class="badge badge-verified">✅ 公式: 有効</span>'
+  if (scan.officialValid === false) return '<span class="badge badge-warning">⛔ 公式: 無効</span>'
+  return ''
+}
 
 function sigBadgeHtml(status) {
   const map = {
