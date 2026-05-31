@@ -87,6 +87,18 @@
 
 ---
 
+## Phase 8: UX改善・ファイル取り込み
+
+- [x] **T49** 結果欄の技術情報（生URL・署名バッジ）を details で折りたたみ
+- [x] **T50** `npm install pdfjs-dist`（動的importで初期バンドルから分離）
+- [x] **T51** `src/file-import.js` — PDF/画像からQRをデコード（jsQR）
+- [x] **T52** `index.html`/`src/main.js` — 「ファイルから読み取り」ボタン・file input・ローディング
+- [x] **T53** 取り込み結果を handleDetected 共通フローへ
+- [x] **T54** ビルド・実PDFで動作確認（Node上でpdfjs描画→jsQRデコード成功）
+- [x] **T55** コミット `feat: collapsible details + PDF/image QR import`
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main

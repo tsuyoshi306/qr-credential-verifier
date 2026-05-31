@@ -196,6 +196,19 @@
     #official-result details { margin-top:12px; }
     #official-result summary { cursor:pointer; font-weight:600; font-size:0.85rem; color:#1a56db; }
 
+    /* ファイル取り込み・区切り */
+    .or-divider { display:flex; align-items:center; text-align:center; color:#9ca3af; font-size:0.78rem; margin:16px 0 12px; }
+    .or-divider::before, .or-divider::after { content:''; flex:1; border-top:1px solid #e5e7eb; }
+    .or-divider span { padding:0 12px; }
+    #file-loading { margin-top:12px; font-weight:600; color:#1a56db; }
+
+    /* 技術情報（折りたたみ） */
+    .tech-details { margin-top:16px; border-top:1px solid #eee; padding-top:10px; }
+    .tech-details > summary { cursor:pointer; font-size:0.82rem; color:#6b7280; font-weight:600; list-style:none; }
+    .tech-details > summary::-webkit-details-marker { display:none; }
+    .tech-label { font-size:0.74rem; color:#9ca3af; margin-top:10px; }
+    #result-url { font-size:0.72rem; color:#6b7280; word-break:break-all; background:#f9fafb; border:1px solid #eee; border-radius:6px; padding:8px; margin-top:4px; }
+
     #error-msg {
       display: none;
       background: #fee2e2;
@@ -271,26 +284,19 @@
       <button id="start-btn" class="btn btn-primary">📷 スキャン開始</button>
       <button id="stop-btn" class="btn btn-secondary" style="display:none">⏹ 停止</button>
 
-      <div id="result-card">
-        <h3>スキャン結果</h3>
-        <div id="result-url"></div>
-        <div id="result-badge" style="margin-top:8px"></div>
+      <div class="or-divider"><span>または</span></div>
+      <button id="file-btn" class="btn btn-secondary">📄 ファイルから読み取り（PDF / 画像）</button>
+      <input id="file-input" type="file" accept="application/pdf,image/*" hidden>
+      <div id="file-loading" style="display:none">⏳ ファイルを解析中…</div>
 
-        <!-- 署名検証バッジ -->
-        <div id="sig-badge" style="margin-top:10px"></div>
+      <div id="result-card">
+        <div id="result-badge"></div>
 
         <!-- 登録情報カード -->
         <div id="cred-info" style="display:none">
           <h3 style="margin-top:14px">登録情報（QRに含まれる内容）</h3>
           <table id="cred-table"></table>
-          <p class="caveat">
-            ⚠️ これはQRに含まれる情報をアプリ内で表示・署名検証したものです。
-            <strong>失効・取消・一時停止の状態は確認できません。</strong>
-            公式な有効性確認は必ずデジタル庁の検証サイトで行ってください。
-          </p>
         </div>
-
-        <div id="parse-error" style="display:none"></div>
 
         <!-- 公式検証（中継サーバ経由でデジタル庁サイトに照会） -->
         <div id="official-verify" style="display:none">
@@ -302,6 +308,19 @@
 
         <button id="verify-btn" class="btn btn-secondary" style="margin-top:12px">🔍 検証サイトを直接開く</button>
         <button id="rescan-btn" class="btn btn-secondary" style="margin-top:8px">🔄 再スキャン</button>
+
+        <!-- 技術情報（既定で折りたたみ） -->
+        <details id="tech-info" class="tech-details">
+          <summary>🔧 技術情報を表示</summary>
+          <div class="caveat">
+            ⚠️ 下記の登録情報はQRに含まれる内容です。<strong>失効・取消の状態は含みません。</strong>
+            正式な有効性は上の「公式検証」またはデジタル庁の検証サイトで確認してください。
+          </div>
+          <div id="sig-badge" style="margin-top:10px"></div>
+          <div id="parse-error" style="display:none;margin-top:10px"></div>
+          <div class="tech-label">QRの生データ（URL）</div>
+          <div id="result-url"></div>
+        </details>
       </div>
     </div>
 
