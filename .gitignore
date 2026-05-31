@@ -1,3 +1,9 @@
 node_modules/
 dist/
 .vite/
+
+# 実物のデジタル資格者証データ・個人情報はコミットしない
+certs/
+samples/
+*.real.txt
+real-qr*.txt

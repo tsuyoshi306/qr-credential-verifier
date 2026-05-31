@@ -4,23 +4,36 @@ import { TRUST_KEYS, findKey } from './trust-config.js'
 const VERIFICATION_HOST = 'dqcvs.nqs.go.jp'
 
 // COSE algorithm registry (RFC 8152 / IANA)
+// kind: 'ec' = ECDSA(楕円曲線) / 'rsa-pss' = RSASSA-PSS / 'rsa-pkcs1' = RSASSA-PKCS1-v1_5
 const COSE_ALG = {
-  '-7': { name: 'ES256', crv: 'P-256', hash: 'SHA-256' },
-  '-35': { name: 'ES384', crv: 'P-384', hash: 'SHA-384' },
-  '-36': { name: 'ES512', crv: 'P-521', hash: 'SHA-512' }
+  '-7':   { name: 'ES256', kind: 'ec', crv: 'P-256', hash: 'SHA-256' },
+  '-35':  { name: 'ES384', kind: 'ec', crv: 'P-384', hash: 'SHA-384' },
+  '-36':  { name: 'ES512', kind: 'ec', crv: 'P-521', hash: 'SHA-512' },
+  '-37':  { name: 'PS256', kind: 'rsa-pss', hash: 'SHA-256', saltLength: 32 },
+  '-38':  { name: 'PS384', kind: 'rsa-pss', hash: 'SHA-384', saltLength: 48 },
+  '-39':  { name: 'PS512', kind: 'rsa-pss', hash: 'SHA-512', saltLength: 64 },
+  '-257': { name: 'RS256', kind: 'rsa-pkcs1', hash: 'SHA-256' },
+  '-258': { name: 'RS384', kind: 'rsa-pkcs1', hash: 'SHA-384' },
+  '-259': { name: 'RS512', kind: 'rsa-pkcs1', hash: 'SHA-512' }
 }
 
-// 既知payloadキーの日本語ラベル（文字列キー・数値キー両対応・暫定）
+// payloadキーの日本語ラベル。
+// 実物のデジタル資格者証（小型船舶操縦士）解析で判明した2文字コードに対応。
+//   CN=資格名称, UN=氏名, UB=生年月日, RN=登録番号, RD=登録年月日,
+//   ID=発行年月日, IA=交付機関, IN=交付者名, CI=資格ID, DN=証明書ID, DT=種別, UC=利用者コード
 const LABELS = {
-  qualification: '資格名称', qualificationName: '資格名称', credentialName: '資格名称',
-  name: '氏名', fullName: '氏名', holderName: '氏名',
-  kana: 'フリガナ', nameKana: 'フリガナ',
-  birthDate: '生年月日', dateOfBirth: '生年月日', dob: '生年月日',
-  registrationNumber: '登録番号', regNumber: '登録番号', number: '登録番号',
-  registrationDate: '登録年月日', issueDate: '発行年月日', dateOfIssue: '発行年月日',
-  correctionDate: '訂正・変更年月日',
-  issuer: '交付機関', authority: '交付機関', issuingAuthority: '交付機関'
+  // 実キー（デジタル資格者証）
+  CN: '資格名称', UN: '氏名', UB: '生年月日',
+  RN: '登録番号', RD: '登録年月日', ID: '発行年月日',
+  IA: '交付機関', IN: '交付者名', CI: '資格ID',
+  DN: '証明書ID', DT: '種別コード', UC: '利用者コード',
+  // 後方互換（推測キー）
+  qualification: '資格名称', name: '氏名', birthDate: '生年月日',
+  registrationNumber: '登録番号', issueDate: '発行年月日', issuer: '交付機関'
 }
+
+// 表示順（実キー優先）
+const LABEL_ORDER = ['CN', 'UN', 'UB', 'RN', 'RD', 'ID', 'IA', 'IN', 'CI', 'DT', 'DN', 'UC']
 
 /** QR文字列が資格者証の検証URLかどうか */
 export function isCredentialUrl(url) {
@@ -105,10 +118,20 @@ export function decodePayload(payloadBytes) {
     const text = new TextDecoder().decode(payloadBytes)
     return { raw: text, fields: [{ label: 'データ', value: text }] }
   }
-  const fields = []
   const entries = data instanceof Map ? [...data.entries()]
     : (data && typeof data === 'object' ? Object.entries(data) : [])
-  for (const [k, v] of entries) {
+  // 既知キーを表示順に並べ、残りは元の順で後ろに付ける
+  const map = new Map(entries.map(([k, v]) => [String(k), v]))
+  const fields = []
+  const used = new Set()
+  for (const key of LABEL_ORDER) {
+    if (map.has(key)) {
+      fields.push({ label: LABELS[key], value: formatValue(map.get(key)) })
+      used.add(key)
+    }
+  }
+  for (const [k, v] of map) {
+    if (used.has(k)) continue
     fields.push({ label: LABELS[k] || String(k), value: formatValue(v) })
   }
   return { raw: data, fields }
@@ -136,25 +159,31 @@ export async function verifySignature(parsed) {
     return { status: 'error', reason: `未対応の署名アルゴリズム(alg=${parsed.alg})` }
   }
   const jwk = findKey(parsed.kid) || TRUST_KEYS[0]
+  const info = parsed.algInfo
   try {
-    const key = await crypto.subtle.importKey(
-      'jwk',
-      { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, ext: true },
-      { name: 'ECDSA', namedCurve: parsed.algInfo.crv },
-      false,
-      ['verify']
-    )
+    let importAlgo, verifyAlgo, jwkImport
+    if (info.kind === 'ec') {
+      importAlgo = { name: 'ECDSA', namedCurve: info.crv }
+      verifyAlgo = { name: 'ECDSA', hash: info.hash }
+      jwkImport = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, ext: true }
+    } else if (info.kind === 'rsa-pss') {
+      importAlgo = { name: 'RSA-PSS', hash: info.hash }
+      verifyAlgo = { name: 'RSA-PSS', saltLength: info.saltLength }
+      jwkImport = { kty: jwk.kty, n: jwk.n, e: jwk.e, ext: true }
+    } else if (info.kind === 'rsa-pkcs1') {
+      importAlgo = { name: 'RSASSA-PKCS1-v1_5', hash: info.hash }
+      verifyAlgo = { name: 'RSASSA-PKCS1-v1_5' }
+      jwkImport = { kty: jwk.kty, n: jwk.n, e: jwk.e, ext: true }
+    } else {
+      return { status: 'error', reason: `未対応の署名種別(${info.name})` }
+    }
+    const key = await crypto.subtle.importKey('jwk', jwkImport, importAlgo, false, ['verify'])
     // Sig_structure = ["Signature1", protected, external_aad(空bstr), payload]
     const sigStructure = ['Signature1', parsed.protectedBstr, new Uint8Array(), parsed.payloadBytes]
     const toVerify = cborEncode(sigStructure)
-    const ok = await crypto.subtle.verify(
-      { name: 'ECDSA', hash: parsed.algInfo.hash },
-      key,
-      parsed.signature,
-      toVerify
-    )
+    const ok = await crypto.subtle.verify(verifyAlgo, key, parsed.signature, toVerify)
     return ok
-      ? { status: 'ok', reason: '署名は正当です（データは改竄されていません）' }
+      ? { status: 'ok', reason: `署名は正当です（${info.name}・データは改竄されていません）` }
       : { status: 'ng', reason: '署名検証に失敗しました（改竄の疑い、または鍵不一致）' }
   } catch (e) {
     return { status: 'error', reason: '署名検証中にエラー: ' + e.message }

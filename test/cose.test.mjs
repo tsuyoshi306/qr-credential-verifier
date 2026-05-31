@@ -77,5 +77,33 @@ console.log('Test 5: 鍵未設定ならスキップ')
   ok(a.signature.status === 'skipped', `鍵なし=skipped (got ${a.signature.status})`)
 }
 
+console.log('Test 6: PS256(RSA-PSS)署名の検証（実物と同じ方式）')
+{
+  TRUST_KEYS.length = 0
+  const rsa = await subtle.generateKey(
+    { name: 'RSA-PSS', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+    true, ['sign', 'verify'])
+  const pub = await subtle.exportKey('jwk', rsa.publicKey)
+  TRUST_KEYS.push({ kid: 'P-000001', kty: 'RSA', n: pub.n, e: pub.e })
+  // 実物と同じ payload キーで COSE_Sign1(PS256) を作る
+  const payloadObj = { CN: '小型船舶操縦士', UN: '海事　太郎', RN: '0200000000000', UB: '1990/01/01' }
+  const protectedMap = new Map([[1, -37]]) // PS256
+  const protectedBstr = new Uint8Array(cborEncode(protectedMap))
+  const payloadBytes = new Uint8Array(cborEncode(payloadObj))
+  const sigStruct = ['Signature1', protectedBstr, new Uint8Array(), payloadBytes]
+  const sig = new Uint8Array(await subtle.sign(
+    { name: 'RSA-PSS', saltLength: 32 }, rsa.privateKey, new Uint8Array(cborEncode(sigStruct))))
+  const cose = [protectedBstr, new Map([[4, new Uint8Array(Buffer.from('P-000001'))]]), payloadBytes, sig]
+  const url = `https://dqcvs.nqs.go.jp/w/?c=${b64url(cborEncode(cose))}`
+  const a = await analyzeCredential(url)
+  ok(a.alg === 'PS256', `alg=PS256 (got ${a.alg})`)
+  ok(a.signature.status === 'ok', `PS256署名検証OK (got ${a.signature.status})`)
+  const cn = a.fields.find(f => f.label === '資格名称')
+  ok(cn && cn.value === '小型船舶操縦士', `実キーCN→資格名称 (got ${cn?.value})`)
+  const rn = a.fields.find(f => f.label === '登録番号')
+  ok(rn && rn.value === '0200000000000', `実キーRN→登録番号 (got ${rn?.value})`)
+  TRUST_KEYS.length = 0
+}
+
 console.log(`\n結果: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
