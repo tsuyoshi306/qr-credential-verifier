@@ -17,14 +17,16 @@ async function getDB() {
   return db
 }
 
-export async function addScan(qrData) {
+export async function addScan(qrData, analysis = {}) {
   const db = await getDB()
   const record = {
     id: crypto.randomUUID(),
     scannedAt: new Date(),
     qrData,
-    isVerified: false,
-    verifiedAt: null,
+    // 解析結果サマリ（cose.js summarize の出力）
+    sigStatus: analysis.sigStatus || null, // 'ok'|'ng'|'skipped'|'error'|null
+    name: analysis.name || '',
+    qualification: analysis.qualification || '',
     memo: ''
   }
   await db.add(STORE, record)

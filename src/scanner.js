@@ -1,14 +1,6 @@
 import jsQR from 'jsqr'
 
-const VERIFICATION_DOMAIN = 'dqcvs.nqs.go.jp'
-
-export function isCredentialUrl(url) {
-  try {
-    return new URL(url).hostname === VERIFICATION_DOMAIN
-  } catch {
-    return false
-  }
-}
+// isCredentialUrl は cose.js に一本化（資格者証URL判定とCOSE解析を同じモジュールで管理）
 
 export class QRScanner {
   constructor({ onDetected, onError }) {
