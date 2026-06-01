@@ -142,7 +142,8 @@ function renderBulkItem(item) {
     <div class="bulk-item-name">📄 ${escHtml(item.fileName)}</div>
     <div class="bulk-item-title">${title}</div>
     ${item.error ? `<div class="bulk-error">⚠️ ${escHtml(item.error)}</div>` : ''}
-    <div class="bulk-item-row">${actions}<span class="bulk-verdict-slot" id="verdict-${item.id}"></span></div>
+    <div class="bulk-item-row">${actions}</div>
+    <div class="bulk-verdict-slot" id="verdict-${item.id}"></div>
   `
   $('bulk-list').appendChild(li)
   const vbtn = li.querySelector('.bulk-verify')
@@ -158,9 +159,8 @@ async function verifyBulkItem(id) {
   slot.innerHTML = '<span class="consent-note">⏳ 照会中…</span>'
   try {
     const data = await requestOfficialVerification(getCheckdata(item.url))
-    slot.innerHTML = data.valid
-      ? '<span class="bulk-verdict verdict-valid">✅ ' + escHtml(data.resultText || '有効') + '</span>'
-      : '<span class="bulk-verdict verdict-invalid">⛔ ' + escHtml(data.resultText || '無効') + '</span>'
+    // 単一検証と同じ詳細（判定＋登録情報＋証明書情報）を行内に表示
+    slot.innerHTML = buildOfficialResultHtml(data)
     if (item.scanId) await updateScan(item.scanId, { officialValid: data.valid, officialResult: data.resultText })
   } catch (e) {
     slot.innerHTML = '<span class="bulk-error">⚠️ ' + escHtml(e.message) + '</span>'
@@ -253,7 +253,8 @@ function showOfficialError(msg) {
   $('official-result').style.display = ''
 }
 
-function renderOfficialResult(data) {
+// 公式検証結果の表示HTMLを生成（単一・一括で共通利用）
+function buildOfficialResultHtml(data) {
   const cls = data.valid ? 'verdict-valid' : 'verdict-invalid'
   const icon = data.valid ? '✅' : '⛔'
   let html = `<div class="verdict ${cls}">${icon} ${escHtml(data.resultText || (data.valid ? '有効' : '無効'))}` +
@@ -273,7 +274,11 @@ function renderOfficialResult(data) {
     }
     html += '</details>'
   }
-  $('official-result').innerHTML = html
+  return html
+}
+
+function renderOfficialResult(data) {
+  $('official-result').innerHTML = buildOfficialResultHtml(data)
   $('official-result').style.display = ''
 }
 
