@@ -116,6 +116,10 @@
 - [x] **T63** 「詳細」展開は単一検証と同一の `buildOfficialResultHtml()` を使用
 - [x] **T64** 詳細パネルのCSS（開閉）
 - [x] **T65** ビルド確認・コミット `feat: unify single/bulk verification detail with expandable 詳細`
+- [x] **T66** 一括の各item解析結果(fields)を保持
+- [x] **T67** 「詳細」展開でQR登録情報を表示（単一cred-infoと同一項目・共通生成関数）
+- [x] **T68** 詳細内「公式検証」ボタン→公式結果を全表示（buildOfficialResultHtml）
+- [x] **T69** 全件公式検証は各詳細を開いて結果反映 / ビルド確認・コミット
 
 ---
 
