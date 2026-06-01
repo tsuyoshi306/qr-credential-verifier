@@ -10,7 +10,10 @@ function loadPdfjs() {
       const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
       return pdfjsLib
-    })()
+    })().catch(err => {
+      pdfjsPromise = null // 失敗したら次回再試行できるようにリセット
+      throw new Error('PDF処理モジュールの読み込みに失敗しました。ページを再読み込みしてください。')
+    })
   }
   return pdfjsPromise
 }

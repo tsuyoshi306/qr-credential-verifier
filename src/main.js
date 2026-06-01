@@ -6,6 +6,16 @@ import { readQrFromFile } from './file-import.js'
 
 const $ = id => document.getElementById(id)
 
+// 動的import（pdf.js等）が旧キャッシュのチャンク欠落で失敗した場合、一度だけ自動リロードして
+// 最新のService Worker/チャンクを取得する（デプロイ直後の取り残し対策）。
+window.addEventListener('vite:preloadError', () => {
+  if (!sessionStorage.getItem('preloadReloadTried')) {
+    sessionStorage.setItem('preloadReloadTried', '1')
+    window.location.reload()
+  }
+})
+window.addEventListener('load', () => sessionStorage.removeItem('preloadReloadTried'))
+
 // Nav
 document.querySelectorAll('nav button').forEach(btn => {
   btn.addEventListener('click', () => {
