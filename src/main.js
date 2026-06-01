@@ -159,8 +159,23 @@ async function verifyBulkItem(id) {
   slot.innerHTML = '<span class="consent-note">⏳ 照会中…</span>'
   try {
     const data = await requestOfficialVerification(getCheckdata(item.url))
-    // 単一検証と同じ詳細（判定＋登録情報＋証明書情報）を行内に表示
-    slot.innerHTML = buildOfficialResultHtml(data)
+    // コンパクト判定＋「詳細」トグル。詳細は単一検証と同一（buildOfficialResultHtml）
+    const vcls = data.valid ? 'verdict-valid' : 'verdict-invalid'
+    const vicon = data.valid ? '✅' : '⛔'
+    slot.innerHTML =
+      `<div class="bulk-item-row">` +
+        `<span class="bulk-verdict ${vcls}">${vicon} ${escHtml(data.resultText || (data.valid ? '有効' : '無効'))}</span>` +
+        `<span class="consent-note">確認日時: ${escHtml(data.checkedAt || '')}</span>` +
+        `<button class="btn btn-secondary bulk-detail" data-id="${id}">詳細</button>` +
+      `</div>` +
+      `<div class="bulk-detail-panel" id="detail-${id}" style="display:none">${buildOfficialResultHtml(data)}</div>`
+    const dbtn = slot.querySelector('.bulk-detail')
+    const panel = slot.querySelector('#detail-' + id)
+    dbtn.addEventListener('click', () => {
+      const open = panel.style.display === ''
+      panel.style.display = open ? 'none' : ''
+      dbtn.textContent = open ? '詳細' : '閉じる'
+    })
     if (item.scanId) await updateScan(item.scanId, { officialValid: data.valid, officialResult: data.resultText })
   } catch (e) {
     slot.innerHTML = '<span class="bulk-error">⚠️ ' + escHtml(e.message) + '</span>'
