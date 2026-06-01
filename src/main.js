@@ -99,13 +99,14 @@ async function runBulkImport(files) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     $('bulk-progress').textContent = `解析中… ${i + 1}/${files.length}：${file.name}`
-    const item = { id: 'b' + i, fileName: file.name, url: null, summary: null, fields: [], scanId: null, error: null }
+    const item = { id: 'b' + i, fileName: file.name, url: null, summary: null, fields: [], analysis: null, scanId: null, error: null }
     try {
       const data = await readQrFromFile(file)
       item.url = data
       const analysis = await analyzeCredential(data)
       item.summary = summarize(analysis)
       item.fields = analysis.fields || []   // QRのCOSE登録情報（単一検証と同一）
+      item.analysis = analysis              // 技術情報（署名バッジ等）生成用
       const rec = await addScan(data, item.summary)
       item.scanId = rec.id
       if (analysis.isCredential && !analysis.error) okCount++
@@ -147,8 +148,9 @@ function renderBulkItem(item) {
     actions = `<span class="sig-badge ${sigCls(item.summary?.sigStatus)}" style="padding:2px 8px;font-size:0.72rem">${sigShort(item.summary?.sigStatus)}</span>`
     actions += `<button class="btn btn-secondary bulk-detail" data-id="${item.id}">詳細</button>`
   }
-  // 詳細パネル：まずQR登録情報、その下に公式検証ボタンと結果スロット（単一検証と同じ流れ）
+  // 詳細パネル：まずQR登録情報、技術情報、その下に公式検証ボタンと結果スロット（単一検証と同じ流れ）
   let panelInner = buildRegistrationTableHtml(item.fields)
+  if (isCred && item.analysis) panelInner += buildTechInfoHtml(item.url, item.analysis)
   if (isCred && isProxyConfigured()) {
     panelInner +=
       `<button class="btn btn-primary bulk-verify" data-id="${item.id}" style="margin-top:10px">🏛 公式検証を実行</button>` +
@@ -236,11 +238,11 @@ let currentUrl = null
 let lastSummary = {}
 let currentScanId = null
 
-async function handleDetected(data) {
+async function handleDetected(data, opts = {}) {
   resetScanUI()
   hideBulk()
   currentUrl = data
-  await showResult(data)
+  await showResult(data, opts)
 }
 
 $('verify-btn').addEventListener('click', () => {
@@ -325,7 +327,26 @@ const SIG_PRESENTATION = {
   error: { cls: 'sig-error', icon: '⚠️', head: '署名検証エラー' }
 }
 
-async function showResult(url) {
+// 署名検証バッジHTML（単一・一括・履歴で共通）
+function buildSigBadgeHtml(analysis) {
+  const sig = (analysis && analysis.signature) || { status: 'skipped', reason: '' }
+  const p = SIG_PRESENTATION[sig.status] || SIG_PRESENTATION.error
+  return `<span class="sig-badge ${p.cls}">${p.icon} ${p.head}` +
+    `<small>${escHtml(sig.reason || '')}${analysis && analysis.alg ? '（alg: ' + escHtml(analysis.alg) + '）' : ''}</small>` +
+    `<small>※失効・取消の状態は確認できません</small></span>`
+}
+
+// 「🔧 技術情報を表示」折りたたみHTML（署名バッジ＋生URL＋注意書き）
+function buildTechInfoHtml(url, analysis) {
+  return `<details class="tech-details"><summary>🔧 技術情報を表示</summary>` +
+    `<div class="caveat">⚠️ 下記の登録情報はQRに含まれる内容です。<strong>失効・取消の状態は含みません。</strong>` +
+    `正式な有効性は「公式検証」またはデジタル庁の検証サイトで確認してください。</div>` +
+    `<div style="margin-top:10px">${buildSigBadgeHtml(analysis)}</div>` +
+    `<div class="tech-label">QRの生データ（URL）</div>` +
+    `<div class="raw-url">${escHtml(url)}</div></details>`
+}
+
+async function showResult(url, { save = true, existingId = null } = {}) {
   $('result-url').textContent = url
   $('result-card').classList.add('show')
   $('scan-status').textContent = 'QRコードを読み取りました'
@@ -358,10 +379,15 @@ async function showResult(url) {
     renderAnalysis(analysis)
   }
 
-  // 履歴に保存（解析結果込み）
   lastSummary = summarize(analysis)
-  const rec = await addScan(url, lastSummary)
-  currentScanId = rec.id
+  if (save) {
+    // 新規読み取り → 履歴に保存
+    const rec = await addScan(url, lastSummary)
+    currentScanId = rec.id
+  } else {
+    // 履歴からの再表示 → 既存レコードを対象にする（新規追加しない）
+    currentScanId = existingId
+  }
 }
 
 function renderAnalysis(a) {
@@ -373,13 +399,8 @@ function renderAnalysis(a) {
     $('parse-error').style.display = ''
     return
   }
-  // 署名バッジ
-  const sig = a.signature || { status: 'skipped', reason: '' }
-  const p = SIG_PRESENTATION[sig.status] || SIG_PRESENTATION.error
-  $('sig-badge').innerHTML =
-    `<span class="sig-badge ${p.cls}">${p.icon} ${p.head}` +
-    `<small>${escHtml(sig.reason)}${a.alg ? '（alg: ' + escHtml(a.alg) + '）' : ''}</small>` +
-    `<small>※失効・取消の状態は確認できません</small></span>`
+  // 署名バッジ（共通関数）
+  $('sig-badge').innerHTML = buildSigBadgeHtml(a)
 
   // 登録情報テーブル
   const table = $('cred-table')
@@ -452,31 +473,42 @@ async function renderHistory() {
     const title = scan.qualification || scan.name
       ? `${escHtml(scan.qualification)}${scan.name ? '／' + escHtml(scan.name) : ''}`
       : escHtml(scan.qrData)
+    const canView = isCredentialUrl(scan.qrData)
     li.innerHTML = `
-      <div class="history-item-header">
-        <span class="history-date">${date}</span>
-        ${officialBadgeHtml(scan) || sigBadgeHtml(scan.sigStatus)}
+      <div class="history-body${canView ? ' clickable' : ''}" data-url="${escAttr(scan.qrData)}" data-id="${scan.id}">
+        <div class="history-item-header">
+          <span class="history-date">${date}</span>
+          ${officialBadgeHtml(scan) || sigBadgeHtml(scan.sigStatus)}
+        </div>
+        <div class="history-url">${title}</div>
+        ${canView ? '<div class="history-hint">タップで再表示・再検証 ›</div>' : ''}
       </div>
-      <div class="history-url">${title}</div>
       <div class="history-actions">
-        ${isCredentialUrl(scan.qrData)
-          ? `<button class="btn-open" data-url="${escAttr(scan.qrData)}">🔍 検証サイト</button>`
-          : ''}
         <button class="btn-del" data-id="${scan.id}">🗑 削除</button>
       </div>
     `
     list.appendChild(li)
   }
 
-  list.querySelectorAll('.btn-open').forEach(btn => {
-    btn.addEventListener('click', () => window.open(btn.dataset.url, '_blank', 'noopener'))
+  // 行本文クリック → スキャン結果カードに再表示（新規履歴は作らず既存IDを対象に）
+  list.querySelectorAll('.history-body.clickable').forEach(body => {
+    body.addEventListener('click', () => {
+      switchToScanTab()
+      handleDetected(body.dataset.url, { save: false, existingId: body.dataset.id })
+    })
   })
   list.querySelectorAll('.btn-del').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation()
       await deleteScan(btn.dataset.id)
       renderHistory()
     })
   })
+}
+
+function switchToScanTab() {
+  const scanBtn = document.querySelector('nav button[data-page="scan"]')
+  if (scanBtn) scanBtn.click()
 }
 
 $('clear-all-btn').addEventListener('click', async () => {
