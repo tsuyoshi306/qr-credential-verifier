@@ -123,6 +123,17 @@
 
 ---
 
+## Phase 11: 一括の技術情報 と 履歴詳細の再検証
+
+- [x] **T70** `buildSigBadgeHtml`/`buildTechInfoHtml` を共通化（単一で使用）
+- [x] **T71** 一括「詳細」に技術情報（折りたたみ）を追加
+- [x] **T72** `showResult(url,{save,existingId})` で保存制御
+- [x] **T73** 履歴行クリックでスキャン結果カードに再表示（save=false）
+- [x] **T74** 履歴からの公式検証は既存レコード更新・新規追加しない
+- [x] **T75** 削除ボタンの伝播制御 / ビルド確認・コミット
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main
