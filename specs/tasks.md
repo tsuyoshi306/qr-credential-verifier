@@ -110,6 +110,15 @@
 
 ---
 
+## Phase 10: 検証表示の統一と一括「詳細」展開
+
+- [x] **T62** 一括各行をコンパクト判定表示＋「詳細」トグルに変更
+- [x] **T63** 「詳細」展開は単一検証と同一の `buildOfficialResultHtml()` を使用
+- [x] **T64** 詳細パネルのCSS（開閉）
+- [x] **T65** ビルド確認・コミット `feat: unify single/bulk verification detail with expandable 詳細`
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main
