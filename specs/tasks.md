@@ -99,6 +99,17 @@
 
 ---
 
+## Phase 9: 一括アップロード
+
+- [x] **T56** file input を multiple 対応
+- [x] **T57** 公式検証fetchを `requestOfficialVerification()` に共通化
+- [x] **T58** `index.html` — バルク結果リスト領域・「全件公式検証」ボタン
+- [x] **T59** `src/main.js` — 複数選択時の逐次取り込み・行レンダリング・進捗
+- [x] **T60** 各行の個別公式検証・全件公式検証（直列）
+- [x] **T61** ビルド確認・コミット `feat: bulk file upload with per-item verification`
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main
