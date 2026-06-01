@@ -48,25 +48,143 @@ $('rescan-btn').addEventListener('click', () => {
 // ファイル（PDF/画像）から読み取り
 $('file-btn').addEventListener('click', () => $('file-input').click())
 $('file-input').addEventListener('change', async e => {
-  const file = e.target.files && e.target.files[0]
+  const files = Array.from(e.target.files || [])
   e.target.value = '' // 同じファイルを再選択できるように
-  if (!file) return
+  if (!files.length) return
   scanner.stop()
   resetScanUI()
   hideError()
-  hideResult()
-  $('file-loading').style.display = ''
-  $('file-btn').disabled = true
-  try {
-    const data = await readQrFromFile(file)
-    await handleDetected(data)
-  } catch (err) {
-    showError(err.message || 'ファイルの読み取りに失敗しました')
-  } finally {
-    $('file-loading').style.display = 'none'
-    $('file-btn').disabled = false
+  if (files.length === 1) {
+    hideBulk()
+    hideResult()
+    $('file-loading').style.display = ''
+    $('file-btn').disabled = true
+    try {
+      const data = await readQrFromFile(files[0])
+      await handleDetected(data)
+    } catch (err) {
+      showError(err.message || 'ファイルの読み取りに失敗しました')
+    } finally {
+      $('file-loading').style.display = 'none'
+      $('file-btn').disabled = false
+    }
+  } else {
+    await runBulkImport(files)
   }
 })
+
+// ---- 一括取り込み ----
+let bulkItems = [] // { id, fileName, url, summary, scanId, error }
+
+async function runBulkImport(files) {
+  hideResult()
+  bulkItems = []
+  $('bulk-list').innerHTML = ''
+  $('bulk-card').style.display = ''
+  $('bulk-verify-all').style.display = 'none'
+  $('file-btn').disabled = true
+  $('bulk-title').textContent = `一括読み取り結果（${files.length}件）`
+
+  let okCount = 0
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    $('bulk-progress').textContent = `解析中… ${i + 1}/${files.length}：${file.name}`
+    const item = { id: 'b' + i, fileName: file.name, url: null, summary: null, scanId: null, error: null }
+    try {
+      const data = await readQrFromFile(file)
+      item.url = data
+      const analysis = await analyzeCredential(data)
+      item.summary = summarize(analysis)
+      const rec = await addScan(data, item.summary)
+      item.scanId = rec.id
+      if (analysis.isCredential && !analysis.error) okCount++
+      else if (!analysis.isCredential) item.error = '資格者証QRではありません'
+      else item.error = analysis.error
+    } catch (err) {
+      item.error = err.message || '読み取り失敗'
+    }
+    bulkItems.push(item)
+    renderBulkItem(item)
+  }
+
+  $('bulk-progress').textContent = `完了：${files.length}件中 ${okCount}件が資格者証QR`
+  $('file-btn').disabled = false
+  if (isProxyConfigured() && bulkItems.some(it => it.url && isCredentialUrl(it.url))) {
+    $('bulk-verify-all').style.display = ''
+  }
+}
+
+function renderBulkItem(item) {
+  const li = document.createElement('li')
+  li.className = 'bulk-item'
+  li.id = 'item-' + item.id
+  const title = item.summary && (item.summary.qualification || item.summary.name)
+    ? `${escHtml(item.summary.qualification || '')}${item.summary.name ? '／' + escHtml(item.summary.name) : ''}`
+    : (item.error ? '—' : '（資格情報なし）')
+  let actions = ''
+  if (item.url && isCredentialUrl(item.url) && !item.error) {
+    actions = `<span class="sig-badge ${sigCls(item.summary?.sigStatus)}" style="padding:2px 8px;font-size:0.72rem">${sigShort(item.summary?.sigStatus)}</span>`
+    if (isProxyConfigured()) {
+      actions += `<button class="btn btn-primary bulk-verify" data-id="${item.id}">🏛 公式検証</button>`
+    }
+  }
+  li.innerHTML = `
+    <div class="bulk-item-name">📄 ${escHtml(item.fileName)}</div>
+    <div class="bulk-item-title">${title}</div>
+    ${item.error ? `<div class="bulk-error">⚠️ ${escHtml(item.error)}</div>` : ''}
+    <div class="bulk-item-row">${actions}<span class="bulk-verdict-slot" id="verdict-${item.id}"></span></div>
+  `
+  $('bulk-list').appendChild(li)
+  const vbtn = li.querySelector('.bulk-verify')
+  if (vbtn) vbtn.addEventListener('click', () => verifyBulkItem(item.id))
+}
+
+async function verifyBulkItem(id) {
+  const item = bulkItems.find(it => it.id === id)
+  if (!item || !item.url) return
+  const slot = $('verdict-' + id)
+  const btn = document.querySelector(`#item-${id} .bulk-verify`)
+  if (btn) btn.disabled = true
+  slot.innerHTML = '<span class="consent-note">⏳ 照会中…</span>'
+  try {
+    const data = await requestOfficialVerification(getCheckdata(item.url))
+    slot.innerHTML = data.valid
+      ? '<span class="bulk-verdict verdict-valid">✅ ' + escHtml(data.resultText || '有効') + '</span>'
+      : '<span class="bulk-verdict verdict-invalid">⛔ ' + escHtml(data.resultText || '無効') + '</span>'
+    if (item.scanId) await updateScan(item.scanId, { officialValid: data.valid, officialResult: data.resultText })
+  } catch (e) {
+    slot.innerHTML = '<span class="bulk-error">⚠️ ' + escHtml(e.message) + '</span>'
+  } finally {
+    if (btn) btn.disabled = false
+  }
+}
+
+$('bulk-verify-all').addEventListener('click', async () => {
+  const targets = bulkItems.filter(it => it.url && isCredentialUrl(it.url) && !it.error)
+  $('bulk-verify-all').disabled = true
+  for (let i = 0; i < targets.length; i++) {
+    $('bulk-progress').textContent = `公式検証中… ${i + 1}/${targets.length}`
+    await verifyBulkItem(targets[i].id)
+  }
+  $('bulk-progress').textContent = `公式検証 完了（${targets.length}件）`
+  $('bulk-verify-all').disabled = false
+})
+
+$('bulk-clear').addEventListener('click', hideBulk)
+
+function hideBulk() {
+  $('bulk-card').style.display = 'none'
+  $('bulk-list').innerHTML = ''
+  $('bulk-progress').textContent = ''
+  bulkItems = []
+}
+
+function sigCls(s) {
+  return { ok: 'sig-ok', ng: 'sig-ng', skipped: 'sig-skip', error: 'sig-error' }[s] || 'sig-skip'
+}
+function sigShort(s) {
+  return { ok: '🔏 署名OK', ng: '⛔ 署名NG', skipped: '🔒 署名スキップ', error: '⚠️ エラー' }[s] || '🔒 署名スキップ'
+}
 
 let currentUrl = null
 let lastSummary = {}
@@ -74,6 +192,7 @@ let currentScanId = null
 
 async function handleDetected(data) {
   resetScanUI()
+  hideBulk()
   currentUrl = data
   await showResult(data)
 }
@@ -82,31 +201,37 @@ $('verify-btn').addEventListener('click', () => {
   if (currentUrl) window.open(currentUrl, '_blank', 'noopener')
 })
 
+// 公式検証の共通関数。checkdata を中継サーバに送り、結果データを返す。失敗時 throw。
+function getCheckdata(url) {
+  try { return new URL(url).searchParams.get('c') } catch { return null }
+}
+async function requestOfficialVerification(checkdata) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ checkdata })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) {
+    throw new Error(data.error || `照会に失敗しました (HTTP ${res.status})`)
+  }
+  return data
+}
+
 $('official-btn').addEventListener('click', async () => {
   if (!currentUrl || !isProxyConfigured()) return
-  let checkdata
-  try { checkdata = new URL(currentUrl).searchParams.get('c') } catch { checkdata = null }
+  const checkdata = getCheckdata(currentUrl)
   if (!checkdata) { showOfficialError('QRから検証データを取得できませんでした'); return }
 
   $('official-btn').disabled = true
   $('official-loading').style.display = ''
   $('official-result').style.display = 'none'
   try {
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkdata })
-    })
-    const data = await res.json()
-    if (!res.ok || data.error) {
-      showOfficialError(data.error || `照会に失敗しました (HTTP ${res.status})`)
-    } else {
-      renderOfficialResult(data)
-      // 公式判定を既存履歴レコードに反映
-      if (currentScanId) await updateScan(currentScanId, { officialValid: data.valid, officialResult: data.resultText })
-    }
+    const data = await requestOfficialVerification(checkdata)
+    renderOfficialResult(data)
+    if (currentScanId) await updateScan(currentScanId, { officialValid: data.valid, officialResult: data.resultText })
   } catch (e) {
-    showOfficialError('中継サーバへの接続に失敗しました')
+    showOfficialError(e.message || '中継サーバへの接続に失敗しました')
   } finally {
     $('official-loading').style.display = 'none'
     $('official-btn').disabled = false
