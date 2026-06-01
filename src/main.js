@@ -99,12 +99,13 @@ async function runBulkImport(files) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     $('bulk-progress').textContent = `解析中… ${i + 1}/${files.length}：${file.name}`
-    const item = { id: 'b' + i, fileName: file.name, url: null, summary: null, scanId: null, error: null }
+    const item = { id: 'b' + i, fileName: file.name, url: null, summary: null, fields: [], scanId: null, error: null }
     try {
       const data = await readQrFromFile(file)
       item.url = data
       const analysis = await analyzeCredential(data)
       item.summary = summarize(analysis)
+      item.fields = analysis.fields || []   // QRのCOSE登録情報（単一検証と同一）
       const rec = await addScan(data, item.summary)
       item.scanId = rec.id
       if (analysis.isCredential && !analysis.error) okCount++
@@ -124,58 +125,77 @@ async function runBulkImport(files) {
   }
 }
 
+// QRのCOSE登録情報テーブルHTML（単一検証の cred-info と同一項目）
+function buildRegistrationTableHtml(fields) {
+  if (!fields || !fields.length) return ''
+  let html = '<h4 class="detail-h">登録情報（QRに含まれる内容）</h4><table class="result-table">'
+  for (const f of fields) html += `<tr><th>${escHtml(f.label)}</th><td>${escHtml(f.value)}</td></tr>`
+  html += '</table>'
+  return html
+}
+
 function renderBulkItem(item) {
   const li = document.createElement('li')
   li.className = 'bulk-item'
   li.id = 'item-' + item.id
+  const isCred = item.url && isCredentialUrl(item.url) && !item.error
   const title = item.summary && (item.summary.qualification || item.summary.name)
     ? `${escHtml(item.summary.qualification || '')}${item.summary.name ? '／' + escHtml(item.summary.name) : ''}`
     : (item.error ? '—' : '（資格情報なし）')
   let actions = ''
-  if (item.url && isCredentialUrl(item.url) && !item.error) {
+  if (isCred) {
     actions = `<span class="sig-badge ${sigCls(item.summary?.sigStatus)}" style="padding:2px 8px;font-size:0.72rem">${sigShort(item.summary?.sigStatus)}</span>`
-    if (isProxyConfigured()) {
-      actions += `<button class="btn btn-primary bulk-verify" data-id="${item.id}">🏛 公式検証</button>`
-    }
+    actions += `<button class="btn btn-secondary bulk-detail" data-id="${item.id}">詳細</button>`
+  }
+  // 詳細パネル：まずQR登録情報、その下に公式検証ボタンと結果スロット（単一検証と同じ流れ）
+  let panelInner = buildRegistrationTableHtml(item.fields)
+  if (isCred && isProxyConfigured()) {
+    panelInner +=
+      `<button class="btn btn-primary bulk-verify" data-id="${item.id}" style="margin-top:10px">🏛 公式検証を実行</button>` +
+      `<p class="consent-note">資格データを中継サーバ経由でデジタル庁に送信し有効性を確認します。</p>` +
+      `<div class="bulk-official-slot" id="official-${item.id}"></div>`
   }
   li.innerHTML = `
     <div class="bulk-item-name">📄 ${escHtml(item.fileName)}</div>
     <div class="bulk-item-title">${title}</div>
     ${item.error ? `<div class="bulk-error">⚠️ ${escHtml(item.error)}</div>` : ''}
     <div class="bulk-item-row">${actions}</div>
-    <div class="bulk-verdict-slot" id="verdict-${item.id}"></div>
+    <div class="bulk-detail-panel" id="detail-${item.id}" style="display:none">${panelInner}</div>
   `
   $('bulk-list').appendChild(li)
-  const vbtn = li.querySelector('.bulk-verify')
-  if (vbtn) vbtn.addEventListener('click', () => verifyBulkItem(item.id))
-}
-
-async function verifyBulkItem(id) {
-  const item = bulkItems.find(it => it.id === id)
-  if (!item || !item.url) return
-  const slot = $('verdict-' + id)
-  const btn = document.querySelector(`#item-${id} .bulk-verify`)
-  if (btn) btn.disabled = true
-  slot.innerHTML = '<span class="consent-note">⏳ 照会中…</span>'
-  try {
-    const data = await requestOfficialVerification(getCheckdata(item.url))
-    // コンパクト判定＋「詳細」トグル。詳細は単一検証と同一（buildOfficialResultHtml）
-    const vcls = data.valid ? 'verdict-valid' : 'verdict-invalid'
-    const vicon = data.valid ? '✅' : '⛔'
-    slot.innerHTML =
-      `<div class="bulk-item-row">` +
-        `<span class="bulk-verdict ${vcls}">${vicon} ${escHtml(data.resultText || (data.valid ? '有効' : '無効'))}</span>` +
-        `<span class="consent-note">確認日時: ${escHtml(data.checkedAt || '')}</span>` +
-        `<button class="btn btn-secondary bulk-detail" data-id="${id}">詳細</button>` +
-      `</div>` +
-      `<div class="bulk-detail-panel" id="detail-${id}" style="display:none">${buildOfficialResultHtml(data)}</div>`
-    const dbtn = slot.querySelector('.bulk-detail')
-    const panel = slot.querySelector('#detail-' + id)
+  const dbtn = li.querySelector('.bulk-detail')
+  const panel = li.querySelector('#detail-' + item.id)
+  if (dbtn && panel) {
     dbtn.addEventListener('click', () => {
       const open = panel.style.display === ''
       panel.style.display = open ? 'none' : ''
       dbtn.textContent = open ? '詳細' : '閉じる'
     })
+  }
+  const vbtn = li.querySelector('.bulk-verify')
+  if (vbtn) vbtn.addEventListener('click', () => verifyBulkItem(item.id))
+}
+
+// 詳細パネルを開く（全件検証時に結果が見えるように）
+function openBulkDetail(id) {
+  const panel = $('detail-' + id)
+  const dbtn = document.querySelector(`#item-${id} .bulk-detail`)
+  if (panel) panel.style.display = ''
+  if (dbtn) dbtn.textContent = '閉じる'
+}
+
+async function verifyBulkItem(id) {
+  const item = bulkItems.find(it => it.id === id)
+  if (!item || !item.url) return
+  const slot = $('official-' + id)
+  if (!slot) return
+  const btn = document.querySelector(`#item-${id} .bulk-verify`)
+  if (btn) btn.disabled = true
+  slot.innerHTML = '<span class="consent-note">⏳ デジタル庁に照会中…</span>'
+  try {
+    const data = await requestOfficialVerification(getCheckdata(item.url))
+    // 公式検証の結果は単一検証と同一（buildOfficialResultHtml）
+    slot.innerHTML = buildOfficialResultHtml(data)
     if (item.scanId) await updateScan(item.scanId, { officialValid: data.valid, officialResult: data.resultText })
   } catch (e) {
     slot.innerHTML = '<span class="bulk-error">⚠️ ' + escHtml(e.message) + '</span>'
@@ -189,6 +209,7 @@ $('bulk-verify-all').addEventListener('click', async () => {
   $('bulk-verify-all').disabled = true
   for (let i = 0; i < targets.length; i++) {
     $('bulk-progress').textContent = `公式検証中… ${i + 1}/${targets.length}`
+    openBulkDetail(targets[i].id)
     await verifyBulkItem(targets[i].id)
   }
   $('bulk-progress').textContent = `公式検証 完了（${targets.length}件）`
