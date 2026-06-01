@@ -23,7 +23,13 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // .mjs（pdf.js worker）等も含めて全アセットをプリキャッシュ
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,wasm,json}'],
+        // デプロイでハッシュが変わった旧チャンクのキャッシュを掃除し、
+        // 新SWを即時有効化（古いチャンク参照による dynamic import 失敗を防ぐ）
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/i,
