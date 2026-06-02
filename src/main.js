@@ -292,16 +292,12 @@ function showOfficialError(msg) {
 }
 
 // 公式検証結果の表示HTMLを生成（単一・一括で共通利用）
+// 登録情報はQR読み取り結果と重複するため表示しない。判定＋証明書情報のみ。
 function buildOfficialResultHtml(data) {
   const cls = data.valid ? 'verdict-valid' : 'verdict-invalid'
   const icon = data.valid ? '✅' : '⛔'
   let html = `<div class="verdict ${cls}">${icon} ${escHtml(data.resultText || (data.valid ? '有効' : '無効'))}` +
     `<small>確認日時: ${escHtml(data.checkedAt || '')}／デジタル庁 検証サイトの判定結果</small></div>`
-  if (data.registration && data.registration.length) {
-    html += '<table class="result-table">'
-    for (const r of data.registration) html += `<tr><th>${escHtml(r.key)}</th><td>${escHtml(r.value)}</td></tr>`
-    html += '</table>'
-  }
   if (data.certificates && data.certificates.length) {
     html += '<details><summary>証明書情報</summary>'
     for (const c of data.certificates) {
