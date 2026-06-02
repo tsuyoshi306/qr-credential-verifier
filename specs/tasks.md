@@ -134,6 +134,13 @@
 
 ---
 
+## Phase 12: 公式検証結果の重複排除
+
+- [x] **T76** `buildOfficialResultHtml` から登録情報テーブルを除去（判定＋証明書情報のみ）
+- [x] **T77** ビルド確認・コミット `feat: drop duplicated registration from official result`
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main
