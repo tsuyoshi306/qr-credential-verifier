@@ -29,6 +29,11 @@ export async function addScan(qrData, analysis = {}) {
     qualification: analysis.qualification || '',
     officialValid: null,   // 公式検証の判定（true/false/null=未実施）
     officialResult: '',    // 公式検証の結果テキスト
+    officialCheckedAt: '', // 公式検証の確認日時
+    certOwner: '',         // 証明書 所有者別名
+    certIssuer: '',        // 証明書 発行者別名
+    certSerial: '',        // 証明書 シリアル番号
+    certValidity: '',      // 証明書 有効期間
     memo: ''
   }
   await db.add(STORE, record)

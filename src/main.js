@@ -198,7 +198,7 @@ async function verifyBulkItem(id) {
     const data = await requestOfficialVerification(getCheckdata(item.url))
     // 公式検証の結果は単一検証と同一（buildOfficialResultHtml）
     slot.innerHTML = buildOfficialResultHtml(data)
-    if (item.scanId) await updateScan(item.scanId, { officialValid: data.valid, officialResult: data.resultText })
+    if (item.scanId) await updateScan(item.scanId, buildOfficialUpdateFields(data))
   } catch (e) {
     slot.innerHTML = '<span class="bulk-error">⚠️ ' + escHtml(e.message) + '</span>'
   } finally {
@@ -277,7 +277,7 @@ $('official-btn').addEventListener('click', async () => {
   try {
     const data = await requestOfficialVerification(checkdata)
     renderOfficialResult(data)
-    if (currentScanId) await updateScan(currentScanId, { officialValid: data.valid, officialResult: data.resultText })
+    if (currentScanId) await updateScan(currentScanId, buildOfficialUpdateFields(data))
   } catch (e) {
     showOfficialError(e.message || '中継サーバへの接続に失敗しました')
   } finally {
@@ -314,6 +314,21 @@ function buildOfficialResultHtml(data) {
 function renderOfficialResult(data) {
   $('official-result').innerHTML = buildOfficialResultHtml(data)
   $('official-result').style.display = ''
+}
+
+// 公式検証結果から履歴に保存するフィールド（証明書情報の主要項目を抽出）
+function buildOfficialUpdateFields(data) {
+  const rows = (data.certificates && data.certificates[0] && data.certificates[0].rows) || []
+  const get = k => (rows.find(r => r.key === k) || {}).value || ''
+  return {
+    officialValid: data.valid,
+    officialResult: data.resultText || '',
+    officialCheckedAt: data.checkedAt || '',
+    certOwner: get('所有者別名'),
+    certIssuer: get('発行者別名'),
+    certSerial: get('シリアル番号'),
+    certValidity: get('有効期間')
+  }
 }
 
 const SIG_PRESENTATION = {
@@ -457,10 +472,12 @@ async function renderHistory() {
   if (scans.length === 0) {
     empty.style.display = ''
     clearBtn.style.display = 'none'
+    $('csv-btn').style.display = 'none'
     return
   }
   empty.style.display = 'none'
   clearBtn.style.display = ''
+  $('csv-btn').style.display = ''
 
   for (const scan of scans) {
     const li = document.createElement('li')
@@ -511,6 +528,77 @@ $('clear-all-btn').addEventListener('click', async () => {
   if (!confirm('全ての履歴を削除しますか？')) return
   await clearScans()
   renderHistory()
+})
+
+// ---- CSV出力 ----
+const CSV_HEADER = [
+  'スキャン日時', '資格名', '氏名', '生年月日', '登録番号', '登録年月日', '発行年月日',
+  '交付機関', '交付者名', '署名検証', '公式検証済み', '公式判定', '確認日時',
+  '証明書_所有者別名', '証明書_発行者別名', '証明書_シリアル番号', '証明書_有効期間', 'QR_URL'
+]
+const SIG_LABEL = { ok: 'OK', ng: 'NG', skipped: 'スキップ', error: 'エラー' }
+
+function csvCell(v) {
+  const s = v == null ? '' : String(v)
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+}
+function buildCsv(rows) {
+  return [CSV_HEADER, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n')
+}
+
+async function buildCsvRows(scans) {
+  const rows = []
+  for (const scan of scans) {
+    // QR登録情報は qrData を再解析して取得（ネット不要）
+    const f = {}
+    if (isCredentialUrl(scan.qrData)) {
+      const a = await analyzeCredential(scan.qrData)
+      for (const fld of (a.fields || [])) f[fld.label] = fld.value
+    }
+    rows.push([
+      new Date(scan.scannedAt).toLocaleString('ja-JP'),
+      f['資格名称'] || scan.qualification || '',
+      f['氏名'] || scan.name || '',
+      f['生年月日'] || '',
+      f['登録番号'] || '',
+      f['登録年月日'] || '',
+      f['発行年月日'] || '',
+      f['交付機関'] || '',
+      f['交付者名'] || '',
+      SIG_LABEL[scan.sigStatus] || '',
+      scan.officialValid == null ? 'いいえ' : 'はい',
+      scan.officialValid == null ? '—' : (scan.officialResult || (scan.officialValid ? '有効' : '無効')),
+      scan.officialCheckedAt || '',
+      scan.certOwner || '',
+      scan.certIssuer || '',
+      scan.certSerial || '',
+      scan.certValidity || '',
+      scan.qrData || ''
+    ])
+  }
+  return rows
+}
+
+$('csv-btn').addEventListener('click', async () => {
+  $('csv-btn').disabled = true
+  try {
+    const scans = await getScans()
+    const csv = buildCsv(await buildCsvRows(scans))
+    // Excel(日本語)向けに UTF-8 BOM 付与
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const d = new Date()
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `qr-credentials-${stamp}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } finally {
+    $('csv-btn').disabled = false
+  }
 })
 
 // PWA install prompt (T23)

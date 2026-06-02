@@ -141,6 +141,15 @@
 
 ---
 
+## Phase 13: CSV出力
+
+- [x] **T78** 公式検証時に証明書情報(所有者/発行者/シリアル/有効期間)・確認日時を履歴保存
+- [x] **T79** `index.html` 履歴タブに「CSV出力」ボタン
+- [x] **T80** `src/main.js` — 全履歴をqrData再解析しCSV生成（BOM付・エスケープ）・ダウンロード
+- [x] **T81** ビルド確認・コミット `feat: CSV export of scanned data`
+
+---
+
 ## PR / マージ
 
 - [ ] **PR1** feature/setup → main
